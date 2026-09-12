@@ -210,6 +210,42 @@ def historical_signal_test(hist, horizon=20):
     return {"trades":int(len(sig)),"win_rate":float((sig>0).mean()),"avg_return":float(sig.mean()),
             "median_return":float(sig.median())}
 
+
+def investment_rating(per_share, price, fundamental_score, technical_score):
+    """Combine valuation, fundamentals and technicals into a simple 3-level screen."""
+    if pd.isna(per_share) or pd.isna(price) or price <= 0:
+        return "N/A", np.nan, "DCF value unavailable"
+    upside = per_share / price - 1
+
+    # DCF component: rewards meaningful upside, penalizes overvaluation.
+    if upside <= -0.20:
+        dcf_score = 0
+    elif upside < 0:
+        dcf_score = 25 + (upside + 0.20) / 0.20 * 25
+    elif upside < 0.10:
+        dcf_score = 50 + upside / 0.10 * 15
+    elif upside < 0.25:
+        dcf_score = 65 + (upside - 0.10) / 0.15 * 15
+    elif upside < 0.50:
+        dcf_score = 80 + (upside - 0.25) / 0.25 * 15
+    else:
+        dcf_score = 95
+
+    fundamental_score_100 = (fundamental_score / 5) * 100
+    technical_score_100 = float(technical_score if not pd.isna(technical_score) else 50)
+
+    # Balanced weighting: DCF 40%, fundamentals 30%, technicals 30%.
+    composite = 0.40 * dcf_score + 0.30 * fundamental_score_100 + 0.30 * technical_score_100
+
+    if composite >= 70:
+        rating = "BUY"
+    elif composite >= 50:
+        rating = "HOLD"
+    else:
+        rating = "AVOID"
+
+    return rating, composite, f"DCF upside {upside*100:.1f}%"
+
 # ---------------- Sidebar ----------------
 st.sidebar.header("Universe")
 ticker = st.sidebar.text_input("Ticker", "AAPL").upper().strip()
@@ -267,6 +303,28 @@ if not pd.isna(base_fcf) and base_fcf > 0 and not pd.isna(shares) and shares > 0
 else:
     per=ev=eq=mos_value=np.nan
     flows=[]; pv=[]; tv=np.nan
+
+# ---------------- Combined investment rating ----------------
+fundamental_score, fundamental_parts = score_company(info, fin, cf)
+pattern_snapshot = pattern_engine(hist)
+technical_score = pattern_snapshot.get("score", 50) if pattern_snapshot else 50
+rating, composite_score, rating_note = investment_rating(per, price, fundamental_score, technical_score)
+
+st.divider()
+st.subheader("Investment rating")
+r1, r2, r3, r4 = st.columns(4)
+if rating == "BUY":
+    r1.success("🟢 BUY")
+elif rating == "HOLD":
+    r1.warning("🟡 HOLD")
+elif rating == "AVOID":
+    r1.error("🔴 AVOID")
+else:
+    r1.metric("Rating", "N/A")
+r2.metric("Overall score", f"{composite_score:.0f}/100" if not pd.isna(composite_score) else "N/A")
+r3.metric("Fundamentals", f"{fundamental_score}/5")
+r4.metric("Technical", f"{technical_score}/100")
+st.caption("Balanced screen: DCF valuation 40% + fundamentals 30% + technicals 30%. This is a screening aid, not personal investment advice.")
 
 st.divider()
 st.subheader("Intrinsic value")
