@@ -283,7 +283,7 @@ tab1,tab2,tab3,tab4,tab5 = st.tabs(["Forecast","Sensitivity","Quality","Price hi
 with tab1:
     if flows:
         forecast=pd.DataFrame({"Year":range(1,years+1),"FCF":flows,"PV FCF":pv})
-        st.dataframe(forecast.style.format({"FCF":"{:,.0f}","PV FCF":"{:,.0f}"}),use_container_width=True)
+        st.dataframe(forecast, use_container_width=True)
         st.bar_chart(forecast.set_index("Year")[["FCF"]])
 
 with tab2:
@@ -299,7 +299,7 @@ with tab2:
         mat.append(row)
     sens=pd.DataFrame(mat,index=[f"{x*100:.0f}%" for x in gs],columns=[f"{x*100:.0f}%" for x in ws])
     sens.index.name="Growth ↓ / WACC →"
-    st.dataframe(sens.style.format("{:,.2f}").background_gradient(axis=None),use_container_width=True)
+    st.dataframe(sens, use_container_width=True)
 
 with tab3:
     score,parts=score_company(info,fin,cf)
@@ -391,6 +391,6 @@ if run:
         + out.get("Tech score",pd.Series(50,index=out.index)).fillna(50).div(100).mul(25)
     )
     out=out.sort_values(["Opportunity score","Upside %"],ascending=False)
-    st.dataframe(out.style.format({"Price":"{:,.2f}","DCF":"{:,.2f}","MOS":"{:,.2f}","Upside %":"{:,.1f}"}),use_container_width=True)
+    st.dataframe(out, use_container_width=True)
 
 st.caption("Educational valuation model. Verify financial statements, corporate actions, share counts, FX, debt/cash and assumptions before making investment decisions.")
